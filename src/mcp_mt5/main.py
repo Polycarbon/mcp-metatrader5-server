@@ -1363,35 +1363,39 @@ def history_orders_get(
     Returns:
         List[HistoryOrder]: List of historical orders.
     """
-    request = {}
-    if symbol is not None:
-        request["symbol"] = symbol
-    if group is not None:
-        request["group"] = group
+    # MetaTrader5.history_deals_get supports:
+    # - history_deals_get(ticket=...)
+    # - history_deals_get(position=...)
+    # - history_deals_get(date_from, date_to, group="...")
+    # It does not accept symbol/from/to kwargs.
     if ticket is not None:
-        request["ticket"] = ticket
-    if position is not None:
-        request["position"] = position
-    if from_date is not None:
-        request["from"] = from_date
-    if to_date is not None:
-        request["to"] = to_date
-
-    # Get history orders
-    if request:
-        orders = mt5.history_orders_get(**request)
+        deals = mt5.history_deals_get(ticket=ticket)
+    elif position is not None and from_date is None and to_date is None and group is None:
+        deals = mt5.history_deals_get(position=position)
     else:
-        orders = mt5.history_orders_get()
+        date_from = from_date if from_date is not None else datetime(1970, 1, 1)
+        date_to = to_date if to_date is not None else datetime.now()
+        if group is not None:
+            deals = mt5.history_deals_get(date_from, date_to, group=group)
+        else:
+            deals = mt5.history_deals_get(date_from, date_to)
 
-    if orders is None:
-        logger.error(f"Failed to get history orders, error code: {mt5.last_error()}")
+    if deals is None:
+        logger.error(f"Failed to get history deals, error code: {mt5.last_error()}")
         return []
 
+    # Apply symbol/position filters in Python because MT5 API does not support
+    # symbol filter directly for history_deals_get.
+    if symbol is not None:
+        deals = [deal for deal in deals if getattr(deal, "symbol", None) == symbol]
+    if position is not None and ticket is None:
+        deals = [deal for deal in deals if getattr(deal, "position_id", None) == position]
+
     result = []
-    for order in orders:
+    for deal in deals:
         # Convert named tuple to dictionary
-        order_dict = order._asdict()
-        result.append(HistoryOrder(**order_dict))
+        deal_dict = deal._asdict()
+        result.append(Deal(**deal_dict))
 
     return result
 
@@ -1420,29 +1424,33 @@ def history_deals_get(
     Returns:
         List[Deal]: List of historical deals.
     """
-    request = {}
-    if symbol is not None:
-        request["symbol"] = symbol
-    if group is not None:
-        request["group"] = group
+    # MetaTrader5.history_deals_get supports:
+    # - history_deals_get(ticket=...)
+    # - history_deals_get(position=...)
+    # - history_deals_get(date_from, date_to, group="...")
+    # It does not accept symbol/from/to kwargs.
     if ticket is not None:
-        request["ticket"] = ticket
-    if position is not None:
-        request["position"] = position
-    if from_date is not None:
-        request["from"] = from_date
-    if to_date is not None:
-        request["to"] = to_date
-
-    # Get history deals
-    if request:
-        deals = mt5.history_deals_get(**request)
+        deals = mt5.history_deals_get(ticket=ticket)
+    elif position is not None and from_date is None and to_date is None and group is None:
+        deals = mt5.history_deals_get(position=position)
     else:
-        deals = mt5.history_deals_get()
+        date_from = from_date if from_date is not None else datetime(1970, 1, 1)
+        date_to = to_date if to_date is not None else datetime.now()
+        if group is not None:
+            deals = mt5.history_deals_get(date_from, date_to, group=group)
+        else:
+            deals = mt5.history_deals_get(date_from, date_to)
 
     if deals is None:
         logger.error(f"Failed to get history deals, error code: {mt5.last_error()}")
         return []
+
+    # Apply symbol/position filters in Python because MT5 API does not support
+    # symbol filter directly for history_deals_get.
+    if symbol is not None:
+        deals = [deal for deal in deals if getattr(deal, "symbol", None) == symbol]
+    if position is not None and ticket is None:
+        deals = [deal for deal in deals if getattr(deal, "position_id", None) == position]
 
     result = []
     for deal in deals:
