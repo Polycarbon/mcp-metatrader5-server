@@ -2,15 +2,16 @@
 Hourly worker: collects equity snapshots and deal history from MT5,
 then upserts them into Supabase.
 
-Run directly:
-    python -m mcp_mt5.worker
-
-Or via the installed script:
-    mt5worker
+Run modes:
+    python -m mcp_mt5.worker              # normal hourly loop
+    python -m mcp_mt5.worker --init       # backfill all history then exit
+    mt5worker                             # normal hourly loop (installed script)
+    mt5worker --init                      # backfill all history then exit
 """
 
 import logging
 import os
+import sys
 import time
 from datetime import datetime, timezone
 
@@ -27,6 +28,9 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 INTERVAL_SECONDS = int(os.getenv("WORKER_INTERVAL_SECONDS", "3600"))
+
+# Batch size for initial history backfill to avoid huge payloads
+UPSERT_BATCH_SIZE = 500
 
 
 # ---------------------------------------------------------------------------
@@ -53,7 +57,8 @@ def _init_mt5() -> bool:
             mt5.shutdown()
             return False
 
-    log.info("MT5 connected (account %s)", mt5.account_info().login if mt5.account_info() else "unknown")
+    info = mt5.account_info()
+    log.info("MT5 connected (account %s)", info.login if info else "unknown")
     return True
 
 
@@ -76,32 +81,34 @@ def _collect_equity_snapshot() -> dict | None:
     }
 
 
+def _deal_to_row(d) -> dict:
+    return {
+        "ticket": d.ticket,
+        "order_ticket": d.order,
+        "position_id": d.position_id,
+        "symbol": d.symbol,
+        "deal_type": d.type,
+        "entry": d.entry,
+        "volume": d.volume,
+        "price": d.price,
+        "commission": d.commission,
+        "swap": d.swap,
+        "profit": d.profit,
+        "fee": d.fee,
+        "magic": d.magic,
+        "comment": d.comment,
+        "deal_time": datetime.fromtimestamp(d.time, tz=timezone.utc).isoformat(),
+        "deal_time_msc": d.time_msc,
+    }
+
+
 def _collect_deals(from_dt: datetime, to_dt: datetime) -> list[dict]:
     deals = mt5.history_deals_get(from_dt, to_dt)
     if deals is None:
         log.warning("history_deals_get() returned None: %s", mt5.last_error())
         return []
-
-    rows = []
-    for d in deals:
-        rows.append({
-            "ticket": d.ticket,
-            "order_ticket": d.order,
-            "position_id": d.position_id,
-            "symbol": d.symbol,
-            "deal_type": d.type,
-            "entry": d.entry,
-            "volume": d.volume,
-            "price": d.price,
-            "commission": d.commission,
-            "swap": d.swap,
-            "profit": d.profit,
-            "fee": d.fee,
-            "magic": d.magic,
-            "comment": d.comment,
-            "deal_time": datetime.fromtimestamp(d.time, tz=timezone.utc).isoformat(),
-            "deal_time_msc": d.time_msc,
-        })
+    rows = [_deal_to_row(d) for d in deals]
+    log.info("fetched %d deal(s) from %s to %s", len(rows), from_dt.isoformat(), to_dt.isoformat())
     return rows
 
 
@@ -124,18 +131,21 @@ def _upsert_deals(client: Client, deals: list[dict]) -> None:
     if not deals:
         log.info("no new deals in window")
         return
-    # upsert on ticket so re-runs are idempotent
-    client.table("deals").upsert(deals, on_conflict="ticket").execute()
-    log.info("upserted %d deal(s)", len(deals))
+    # batch to avoid oversized payloads
+    for i in range(0, len(deals), UPSERT_BATCH_SIZE):
+        batch = deals[i : i + UPSERT_BATCH_SIZE]
+        client.table("deals").upsert(batch, on_conflict="ticket").execute()
+        log.info("upserted batch %d-%d (%d rows)", i + 1, i + len(batch), len(batch))
 
 
 # ---------------------------------------------------------------------------
-# Main loop
+# Run modes
 # ---------------------------------------------------------------------------
 
-def run_once(client: Client, window_seconds: int = INTERVAL_SECONDS) -> None:
+def run_once(client: Client) -> None:
+    """Collect equity + last-hour deals and upsert."""
     now = datetime.now(timezone.utc)
-    from_dt = datetime.fromtimestamp(now.timestamp() - window_seconds, tz=timezone.utc)
+    from_dt = datetime.fromtimestamp(now.timestamp() - INTERVAL_SECONDS, tz=timezone.utc)
 
     snapshot = _collect_equity_snapshot()
     if snapshot:
@@ -145,8 +155,30 @@ def run_once(client: Client, window_seconds: int = INTERVAL_SECONDS) -> None:
     _upsert_deals(client, deals)
 
 
+def run_init_history(client: Client) -> None:
+    """Backfill all available deal history from MT5 into Supabase."""
+    log.info("Starting full history backfill …")
+
+    # MT5 history starts from the account creation date; use epoch as safe lower bound
+    from_dt = datetime(2000, 1, 1, tzinfo=timezone.utc)
+    to_dt = datetime.now(timezone.utc)
+
+    deals = _collect_deals(from_dt, to_dt)
+    if not deals:
+        log.info("No historical deals found.")
+        return
+
+    log.info("Backfilling %d deal(s) total …", len(deals))
+    _upsert_deals(client, deals)
+    log.info("History backfill complete.")
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+
 def main() -> None:
-    log.info("Worker starting  interval=%ds", INTERVAL_SECONDS)
+    init_mode = "--init" in sys.argv
 
     client = _supabase_client()
 
@@ -154,13 +186,17 @@ def main() -> None:
         raise SystemExit("Could not connect to MT5")
 
     try:
-        while True:
-            try:
-                run_once(client)
-            except Exception:
-                log.exception("run_once() failed — will retry next cycle")
-            log.info("sleeping %ds …", INTERVAL_SECONDS)
-            time.sleep(INTERVAL_SECONDS)
+        if init_mode:
+            run_init_history(client)
+        else:
+            log.info("Worker starting  interval=%ds", INTERVAL_SECONDS)
+            while True:
+                try:
+                    run_once(client)
+                except Exception:
+                    log.exception("run_once() failed — will retry next cycle")
+                log.info("sleeping %ds …", INTERVAL_SECONDS)
+                time.sleep(INTERVAL_SECONDS)
     finally:
         mt5.shutdown()
         log.info("MT5 connection closed")
