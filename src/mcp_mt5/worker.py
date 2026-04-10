@@ -70,7 +70,7 @@ def _collect_equity_snapshot() -> dict | None:
         "balance": info.balance,
         "equity": info.equity,
         "margin": info.margin,
-        "margin_free": info.free_margin,
+        "margin_free": info.margin_free,
         "profit": info.profit,
         "leverage": info.leverage,
     }
