@@ -25,6 +25,7 @@ dependencies = [
     "pandas>=2.3.3",
     "pydantic>=2.11.9",
     "python-dotenv>=1.1.1",
+    "supabase>=2.15.0",
 ]
 
 [project.optional-dependencies]
@@ -42,6 +43,7 @@ docs = [
 
 [project.scripts]
 mt5mcp = "mcp_mt5:main"
+mt5worker = "mcp_mt5.worker:main"
 
 [tool.hatchling]
 package-dir = {"" = "src"}
