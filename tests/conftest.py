@@ -15,6 +15,16 @@ for _mod in _MOCK_MODULES:
     if _mod not in sys.modules:
         sys.modules[_mod] = MagicMock()
 
+# Set MT5 timeframe constants on the module-level mock so that
+# `import MetaTrader5 as mt5; mt5.TIMEFRAME_M1` returns an int, not a MagicMock.
+_mt5_mock = sys.modules["MetaTrader5"]
+_mt5_mock.TIMEFRAME_M1 = 1
+_mt5_mock.TIMEFRAME_M5 = 5
+_mt5_mock.TIMEFRAME_M15 = 15
+_mt5_mock.TIMEFRAME_H1 = 16385
+_mt5_mock.TIMEFRAME_H4 = 16388
+_mt5_mock.TIMEFRAME_D1 = 16408
+
 
 @pytest.fixture
 def mock_mt5(monkeypatch):
