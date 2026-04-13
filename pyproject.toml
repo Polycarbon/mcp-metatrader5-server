@@ -43,6 +43,7 @@ docs = [
 
 [project.scripts]
 mt5mcp = "mcp_mt5:main"
+mt5agent = "mcp_mt5.agent:main"
 mt5worker = "mcp_mt5.worker:main"
 mt5heartbeat = "mcp_mt5.heartbeat:main"
 
