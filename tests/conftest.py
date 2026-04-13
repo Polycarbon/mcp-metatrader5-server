@@ -5,6 +5,16 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
+# Pre-mock heavy third-party dependencies so that importing mcp_mt5 doesn't fail
+# on non-Windows or environments without all dependencies installed.
+_MOCK_MODULES = [
+    "MetaTrader5", "fastmcp", "supabase", "dotenv", "pandas", "pydantic",
+    "pydantic_ai",
+]
+for _mod in _MOCK_MODULES:
+    if _mod not in sys.modules:
+        sys.modules[_mod] = MagicMock()
+
 
 @pytest.fixture
 def mock_mt5(monkeypatch):
