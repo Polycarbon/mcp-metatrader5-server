@@ -165,6 +165,15 @@ def _handle_signal(signum, _frame):
 
 
 def main() -> None:
+    import warnings
+    warnings.warn(
+        "mt5heartbeat is deprecated and will be removed in a future version. "
+        "Use mt5agent instead, which includes heartbeat functionality.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    print("\u26a0 DEPRECATED: mt5heartbeat is deprecated. Use mt5agent instead.")
+
     signal.signal(signal.SIGINT, _handle_signal)
     signal.signal(signal.SIGTERM, _handle_signal)
 

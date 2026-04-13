@@ -178,6 +178,15 @@ def run_init_history(client: Client) -> None:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    import warnings
+    warnings.warn(
+        "mt5worker is deprecated and will be removed in a future version. "
+        "Use mt5agent instead, which includes all worker functionality.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    print("\u26a0 DEPRECATED: mt5worker is deprecated. Use mt5agent instead.")
+
     init_mode = "--init" in sys.argv
 
     client = _supabase_client()
