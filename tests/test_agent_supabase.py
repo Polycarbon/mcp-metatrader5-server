@@ -11,12 +11,12 @@ class TestSupabaseClient:
         client._bot_status_id = None
         return client
 
-    def test_insert_account_snapshot(self):
+    def test_upsert_account_snapshot(self):
         client = self._make_client()
         snapshot = {"balance": 1000.0, "equity": 1050.0}
-        result = client.insert_account_snapshot(snapshot)
+        result = client.upsert_account_snapshot(snapshot)
         assert result is True
-        client._client.table.assert_called_with("equity_snapshots")
+        client._client.table.assert_called_with("account_snapshot")
 
     def test_upsert_position(self):
         client = self._make_client()
@@ -40,10 +40,10 @@ class TestSupabaseClient:
         result = client.delete_closed_positions([])
         assert result is True
 
-    def test_insert_snapshot_exception_returns_false(self):
+    def test_upsert_snapshot_exception_returns_false(self):
         client = self._make_client()
         client._client.table.side_effect = Exception("connection error")
-        result = client.insert_account_snapshot({"balance": 0})
+        result = client.upsert_account_snapshot({"balance": 0})
         assert result is False
 
     def test_get_pending_commands(self):

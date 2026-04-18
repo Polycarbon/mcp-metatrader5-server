@@ -37,12 +37,24 @@ class SupabaseAgentClient:
             logger.exception("Failed to upsert heartbeat")
             return False
 
-    def insert_account_snapshot(self, snapshot: dict) -> bool:
+    def upsert_account_snapshot(self, snapshot: dict) -> bool:
         try:
-            self._client.table("equity_snapshots").insert(snapshot).execute()
+            self._client.table("account_snapshot").upsert(snapshot, on_conflict="id").execute()
             return True
         except Exception:
-            logger.exception("Failed to insert account snapshot")
+            logger.exception("Failed to upsert account snapshot")
+            return False
+
+    def upsert_deals(self, deals: list[dict], batch_size: int = 500) -> bool:
+        """Upsert deal rows in batches to avoid oversized payloads."""
+        try:
+            for i in range(0, len(deals), batch_size):
+                batch = deals[i : i + batch_size]
+                self._client.table("deals").upsert(batch, on_conflict="ticket").execute()
+                logger.info("Upserted deals batch %d-%d (%d rows)", i + 1, i + len(batch), len(batch))
+            return True
+        except Exception:
+            logger.exception("Failed to upsert deals")
             return False
 
     def upsert_position(self, position: dict) -> bool:

@@ -12,6 +12,7 @@ class AgentConfig:
         self.sync_interval = int(os.getenv("SYNC_INTERVAL", "10"))
         self.price_sync_interval = int(os.getenv("PRICE_SYNC_INTERVAL", "10"))
         self.command_poll_interval = int(os.getenv("COMMAND_POLL_INTERVAL", "2"))
+        self.deals_sync_interval = int(os.getenv("DEALS_SYNC_INTERVAL", "60"))
 
         self.bulk_candle_count = int(os.getenv("BULK_CANDLE_COUNT", "500"))
         self.incremental_candle_count = int(os.getenv("INCREMENTAL_CANDLE_COUNT", "10"))

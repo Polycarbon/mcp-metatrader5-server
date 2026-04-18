@@ -20,21 +20,20 @@ def sync_once(sb: SupabaseAgentClient) -> bool:
         return False
 
     snapshot = {
-        "captured_at": datetime.now(timezone.utc).isoformat(),
-        "login": account.login,
-        "currency": account.currency,
+        "id": 1,
         "balance": account.balance,
         "equity": account.equity,
         "margin": account.margin,
-        "margin_free": account.margin_free,
-        "profit": account.profit,
-        "leverage": account.leverage,
+        "free_margin": account.margin_free,
+        "unrealized_pl": account.profit,
+        "daily_pl": 0,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
     }
 
-    ok = sb.insert_account_snapshot(snapshot)
+    ok = sb.upsert_account_snapshot(snapshot)
     if ok:
         logger.debug(
-            "Account snapshot — balance=%.2f equity=%.2f profit=%.2f",
+            "Account snapshot — balance=%.2f equity=%.2f unrealized_pl=%.2f",
             account.balance, account.equity, account.profit,
         )
     return ok

@@ -30,16 +30,17 @@ class TestAccountSync:
             login=12345, currency="USD", balance=10000.0, equity=10500.0,
             margin=100.0, margin_free=10400.0, profit=500.0, leverage=100,
         )
-        mock_sb.insert_account_snapshot.return_value = True
+        mock_sb.upsert_account_snapshot.return_value = True
 
         result = sync_once(mock_sb)
 
         assert result is True
-        mock_sb.insert_account_snapshot.assert_called_once()
-        snapshot = mock_sb.insert_account_snapshot.call_args[0][0]
-        assert snapshot["login"] == 12345
+        mock_sb.upsert_account_snapshot.assert_called_once()
+        snapshot = mock_sb.upsert_account_snapshot.call_args[0][0]
         assert snapshot["balance"] == 10000.0
         assert snapshot["equity"] == 10500.0
+        assert snapshot["free_margin"] == 10400.0
+        assert snapshot["unrealized_pl"] == 500.0
 
     def test_sync_once_mt5_returns_none(self, mock_sb):
         from mcp_mt5.agent.account_sync import sync_once
@@ -49,7 +50,7 @@ class TestAccountSync:
         result = sync_once(mock_sb)
 
         assert result is False
-        mock_sb.insert_account_snapshot.assert_not_called()
+        mock_sb.upsert_account_snapshot.assert_not_called()
 
 
 @pytest.mark.unit

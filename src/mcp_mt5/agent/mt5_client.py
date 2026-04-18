@@ -1,6 +1,7 @@
 """MT5 connection wrapper for the agent daemon."""
 
 import logging
+from datetime import datetime
 
 import MetaTrader5 as mt5
 
@@ -61,6 +62,15 @@ def get_account_info():
 
 def get_positions():
     return mt5.positions_get()
+
+
+def get_history_deals(from_dt: datetime, to_dt: datetime):
+    """Fetch closed deal history from MT5 within a time range."""
+    deals = mt5.history_deals_get(from_dt, to_dt)
+    if deals is None:
+        logger.warning("history_deals_get() returned None: %s", mt5.last_error())
+        return None
+    return deals
 
 
 def close_all_positions() -> tuple[int, int]:
